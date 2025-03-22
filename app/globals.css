@@ -137,3 +137,172 @@
     background-position: 0% 50%;
   }
 }
+
+.apple-loader-container {
+  width: 70px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03), 0 6px 16px rgba(0, 0, 0, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.01);
+}
+
+.apple-loader {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: apple-loader-spin 1.2s linear infinite;
+}
+
+@keyframes apple-loader-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.apple-loader-dot {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  left: 0;
+  top: 0;
+  transform-origin: 18px 18px;
+}
+
+.apple-loader-dot::after {
+  content: "";
+  position: absolute;
+  display: block;
+  top: 2px;
+  left: 17px;
+  width: 2px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.apple-loader-dot:nth-child(1)::after {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+.apple-loader-dot:nth-child(2)::after {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.apple-loader-dot:nth-child(3)::after {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+.apple-loader-dot:nth-child(4)::after {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+.apple-loader-dot:nth-child(5)::after {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.apple-loader-dot:nth-child(6)::after {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+.apple-loader-dot:nth-child(7)::after {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+.apple-loader-dot:nth-child(8)::after {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+.apple-loader-dot:nth-child(9)::after {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.apple-loader-dot:nth-child(10)::after {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+.apple-loader-dot:nth-child(11)::after {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+.apple-loader-dot:nth-child(12)::after {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+@keyframes apple-skeleton-pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.apple-skeleton-item {
+  animation: apple-skeleton-pulse 1.5s ease-in-out infinite;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.apple-skeleton-item::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: apple-skeleton-shimmer 2s infinite;
+  content: "";
+}
+
+@keyframes apple-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.apple-progress-bar {
+  position: relative;
+  overflow: hidden;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+}
+
+.apple-progress-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: apple-progress-shimmer 1.5s infinite;
+  transform: translateX(-100%);
+}
+
+.apple-progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background-color: rgba(80, 80, 80, 0.9);
+  transition: width 0.5s ease;
+}
+
+@keyframes apple-progress-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

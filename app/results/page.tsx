@@ -12,7 +12,6 @@ import {
   ThumbsDown,
   VideoIcon,
   Sparkles,
-  Loader2,
 } from "lucide-react";
 import VideoPlayer from "@/components/video-player";
 import SummaryView from "@/app/components/summary-view";
@@ -22,6 +21,10 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [triggerId, setTriggerId] = useState<string | null>(null);
+  const [processingStep, setProcessingStep] = useState<
+    "downloading" | "processing" | "generating"
+  >("downloading");
+  const [progress, setProgress] = useState(10);
   const searchParams = useSearchParams();
   const url = searchParams.get("url");
   const videoUrl = url ? decodeURIComponent(url) : null;
@@ -34,6 +37,8 @@ export default function ResultsPage() {
       setLoading(true);
       setError("");
       setSummary("");
+      setProcessingStep("downloading");
+      setProgress(10);
 
       try {
         const response = await fetch("/api/process-video", {
@@ -51,6 +56,8 @@ export default function ResultsPage() {
         }
 
         setTriggerId(data.triggerId);
+        setProcessingStep("processing");
+        setProgress(30);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
@@ -68,6 +75,8 @@ export default function ResultsPage() {
 
     const pollInterval = setInterval(checkStatus, 5000);
     let mounted = true;
+    let pollCount = 0;
+    const maxPolls = 20; // Arbitrary number to increment progress
 
     async function checkStatus() {
       try {
@@ -78,6 +87,18 @@ export default function ResultsPage() {
           throw new Error(data.error || "Failed to check status");
         }
 
+        // Increment progress for visual feedback
+        pollCount++;
+        if (pollCount > 2 && pollCount < maxPolls) {
+          // After a couple of polls, update progress
+          const newProgress = Math.min(30 + (pollCount / maxPolls) * 50, 80);
+          setProgress(newProgress);
+
+          if (pollCount > 5) {
+            setProcessingStep("generating");
+          }
+        }
+
         // If processing is complete
         if (data.completed) {
           if (mounted) {
@@ -85,6 +106,7 @@ export default function ResultsPage() {
               setError(data.error);
             } else {
               setSummary(data.message || "");
+              setProgress(100);
             }
 
             setLoading(false);
@@ -116,6 +138,7 @@ export default function ResultsPage() {
   const handleTryAgain = () => {
     setTriggerId(null);
     setError("");
+    setProgress(0);
   };
 
   if (!videoUrl) {
@@ -155,12 +178,162 @@ export default function ResultsPage() {
         </div>
 
         {loading && !summary ? (
-          <div className="py-12 flex flex-col items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-zinc-500 mb-4" />
-            <p className="text-zinc-800 font-medium">Processing video...</p>
-            <p className="text-zinc-600 text-sm mt-2">
-              This may take a minute or two
-            </p>
+          <div className="ml-4">
+            <div className="grid gap-8 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <Card className="p-4 border-zinc-100 bg-white shadow-md overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-zinc-50/50 to-transparent pointer-events-none"></div>
+
+                  <div className="relative">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="bg-zinc-100 rounded-full p-1">
+                        <VideoIcon className="h-4 w-4 text-zinc-600" />
+                      </div>
+                      <h2 className="text-lg font-medium text-zinc-800">
+                        Video Preview
+                      </h2>
+                    </div>
+
+                    <div className="aspect-video bg-zinc-50 rounded-md flex items-center justify-center overflow-hidden relative">
+                      {videoUrl ? (
+                        <VideoPlayer url={videoUrl} />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center">
+                          <div
+                            className="apple-loader"
+                            style={{ transform: "scale(0.8)" }}
+                          >
+                            {[...Array(12)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="apple-loader-dot"
+                                style={{
+                                  transform: `rotate(${i * 30}deg)`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-xs text-zinc-400 mt-2">
+                            Loading preview
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2 border-zinc-200 text-zinc-600 hover:bg-zinc-50 font-mono text-xs w-full"
+                          disabled={true}
+                        >
+                          <Download className="h-4 w-4" />
+                          DOWNLOAD SUMMARY
+                        </Button>
+                      </div>
+
+                      <div className="pt-4 border-t border-zinc-100 opacity-50">
+                        <h3 className="text-sm font-medium mb-2 text-zinc-800">
+                          Was this helpful?
+                        </h3>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 border-zinc-200 text-zinc-800 hover:bg-zinc-50"
+                            disabled={true}
+                          >
+                            <ThumbsUp className="h-4 w-4" />
+                            Yes
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 border-zinc-200 text-zinc-800 hover:bg-zinc-50"
+                            disabled={true}
+                          >
+                            <ThumbsDown className="h-4 w-4" />
+                            No
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="lg:col-span-2">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="bg-zinc-100 rounded-full p-2">
+                    <Sparkles className="h-5 w-5 text-zinc-700" />
+                  </div>
+                  <h2 className="text-xl font-bold text-zinc-900 font-['Geist Mono']">
+                    VIDEO SUMMARY
+                  </h2>
+                </div>
+
+                <Card className="p-6 border-zinc-100 bg-white shadow-md">
+                  <div className="flex flex-col items-center justify-center py-16 space-y-6">
+                    <div className="relative flex items-center justify-center">
+                      <div className="apple-loader-container">
+                        <div className="apple-loader">
+                          {[...Array(12)].map((_, i) => (
+                            <div
+                              key={i}
+                              className="apple-loader-dot"
+                              style={{
+                                transform: `rotate(${i * 30}deg)`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-center text-xl font-medium text-zinc-800">
+                        {processingStep === "downloading" &&
+                          "Downloading Video..."}
+                        {processingStep === "processing" &&
+                          "Processing Content..."}
+                        {processingStep === "generating" &&
+                          "Generating Summary..."}
+                      </p>
+                      <p className="text-center text-zinc-500 mt-1 text-sm">
+                        {processingStep === "downloading" &&
+                          "We're preparing your video content"}
+                        {processingStep === "processing" &&
+                          "Analyzing video and extracting key points"}
+                        {processingStep === "generating" &&
+                          "Creating your personalized summary"}
+                      </p>
+                    </div>
+
+                    <div className="w-full max-w-sm mt-8 px-4">
+                      <div className="apple-progress-bar">
+                        <div
+                          className="apple-progress-bar-fill"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-zinc-400 text-right mt-1">
+                        {Math.round(progress)}%
+                      </p>
+                    </div>
+
+                    {/* Apple-style skeleton loading */}
+                    <div className="w-full space-y-3 pt-6">
+                      <div className="h-4 w-3/4 rounded-full mx-auto apple-skeleton-item"></div>
+                      <div className="h-4 w-5/6 rounded-full mx-auto apple-skeleton-item"></div>
+                      <div className="h-4 w-2/3 rounded-full mx-auto apple-skeleton-item"></div>
+                      <div className="h-4 w-5/6 rounded-full mx-auto apple-skeleton-item"></div>
+                      <div className="h-4 w-1/2 rounded-full mx-auto apple-skeleton-item"></div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid gap-8 lg:grid-cols-3 ml-4">
@@ -262,19 +435,7 @@ export default function ResultsPage() {
                 </Card>
               ) : (
                 <Card className="p-6 border-zinc-100 bg-white shadow-md">
-                  {loading ? (
-                    <div className="py-12 flex flex-col items-center justify-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-zinc-500 mb-4" />
-                      <p className="text-zinc-800 font-medium">
-                        Generating summary...
-                      </p>
-                      <p className="text-zinc-600 text-sm mt-2">
-                        This may take a minute or two
-                      </p>
-                    </div>
-                  ) : (
-                    <SummaryView summary={summary} isLoading={false} error="" />
-                  )}
+                  <SummaryView summary={summary} isLoading={loading} error="" />
                 </Card>
               )}
             </div>
