@@ -1,48 +1,151 @@
-import { Suspense } from "react"
-import Link from "next/link"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { ArrowLeft, Download, Share2, ThumbsUp, ThumbsDown, VideoIcon, Sparkles } from "lucide-react"
-import VideoPlayer from "@/components/video-player"
-import TranscriptView from "@/components/transcript-view"
-import SummaryView from "@/components/summary-view"
-import LoadingResults from "@/components/loading-results"
-import DynamicNavbar from "@/components/dynamic-navbar"
+"use client";
 
-export default function ResultsPage({
-  searchParams,
-}: {
-  searchParams: { url?: string }
-}) {
-  const videoUrl = searchParams.url ? decodeURIComponent(searchParams.url) : null
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  ArrowLeft,
+  Download,
+  ThumbsUp,
+  ThumbsDown,
+  VideoIcon,
+  Sparkles,
+  Loader2,
+} from "lucide-react";
+import VideoPlayer from "@/components/video-player";
+import SummaryView from "@/app/components/summary-view";
+
+export default function ResultsPage() {
+  const [summary, setSummary] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [triggerId, setTriggerId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const url = searchParams.get("url");
+  const videoUrl = url ? decodeURIComponent(url) : null;
+
+  // Step 1: Start processing when URL is available
+  useEffect(() => {
+    if (!url || loading || triggerId || error) return;
+
+    async function startProcessing() {
+      setLoading(true);
+      setError("");
+      setSummary("");
+
+      try {
+        const response = await fetch("/api/process-video", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to start processing");
+        }
+
+        setTriggerId(data.triggerId);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        setError(message);
+        setLoading(false);
+      }
+    }
+
+    startProcessing();
+  }, [url, loading, triggerId, error]);
+
+  // Step 2: Poll for results when we have a triggerId
+  useEffect(() => {
+    if (!triggerId || !loading) return;
+
+    const pollInterval = setInterval(checkStatus, 5000);
+    let mounted = true;
+
+    async function checkStatus() {
+      try {
+        const response = await fetch(`/api/get-results?triggerId=${triggerId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to check status");
+        }
+
+        // If processing is complete
+        if (data.completed) {
+          if (mounted) {
+            if (data.error) {
+              setError(data.error);
+            } else {
+              setSummary(data.message || "");
+            }
+
+            setLoading(false);
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+          setError(message);
+          setLoading(false);
+          clearInterval(pollInterval);
+        }
+      }
+    }
+
+    // Initial check
+    checkStatus();
+
+    // Clean up
+    return () => {
+      mounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [triggerId, loading]);
+
+  // Try again button handler
+  const handleTryAgain = () => {
+    setTriggerId(null);
+    setError("");
+  };
 
   if (!videoUrl) {
     return (
       <div className="container py-12 text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary-800">No Video URL Provided</h2>
-        <p className="mb-6 text-primary-600">Please return to the home page and submit a video URL.</p>
-        <Button asChild className="bg-primary-800 hover:bg-primary-900">
+        <h2 className="text-2xl font-bold mb-4 text-zinc-800">
+          No Video URL Provided
+        </h2>
+        <p className="mb-6 text-zinc-600">
+          Please return to the home page and submit a video URL.
+        </p>
+        <Button asChild className="bg-zinc-600 hover:bg-zinc-700 text-white">
           <Link href="/">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Home
           </Link>
         </Button>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-green-50/50 to-background">
-      <DynamicNavbar />
-
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-zinc-50 to-white">
       <main className="flex-1 container py-8 pt-20">
-        <div className="mb-6">
+        <div className="mb-6 ml-4">
           <Button
             variant="outline"
             size="sm"
             asChild
-            className="border-green-200 text-primary-800 hover:bg-green-50 hover:text-primary-900 font-mono"
+            className="border-zinc-200 text-zinc-800 hover:bg-zinc-50 hover:text-zinc-900 font-mono"
           >
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -51,19 +154,29 @@ export default function ResultsPage({
           </Button>
         </div>
 
-        <Suspense fallback={<LoadingResults />}>
-          <div className="grid gap-8 lg:grid-cols-3">
+        {loading && !summary ? (
+          <div className="py-12 flex flex-col items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-zinc-500 mb-4" />
+            <p className="text-zinc-800 font-medium">Processing video...</p>
+            <p className="text-zinc-600 text-sm mt-2">
+              This may take a minute or two
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-8 lg:grid-cols-3 ml-4">
             <div className="lg:col-span-1">
-              <Card className="p-4 border-green-100 bg-white shadow-md overflow-hidden relative">
+              <Card className="p-4 border-zinc-100 bg-white shadow-md overflow-hidden relative">
                 {/* Subtle gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-transparent pointer-events-none"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-zinc-50/50 to-transparent pointer-events-none"></div>
 
                 <div className="relative">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="bg-green-100 rounded-full p-1">
-                      <VideoIcon className="h-4 w-4 text-green-600" />
+                    <div className="bg-zinc-100 rounded-full p-1">
+                      <VideoIcon className="h-4 w-4 text-zinc-600" />
                     </div>
-                    <h2 className="text-lg font-medium text-primary-800">Video Preview</h2>
+                    <h2 className="text-lg font-medium text-zinc-800">
+                      Video Preview
+                    </h2>
                   </div>
 
                   <VideoPlayer url={videoUrl} />
@@ -73,39 +186,38 @@ export default function ResultsPage({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex items-center gap-2 border-green-200 text-primary-800 hover:bg-green-50 font-mono text-xs"
-                      >
-                        <Download className="h-4 w-4" />
-                        DOWNLOAD TRANSCRIPT
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 border-green-200 text-primary-800 hover:bg-green-50 font-mono text-xs"
+                        className="flex items-center gap-2 border-zinc-200 text-zinc-800 hover:bg-zinc-50 font-mono text-xs w-full"
+                        disabled={!summary}
+                        onClick={() => {
+                          if (summary) {
+                            const blob = new Blob([summary], {
+                              type: "text/plain",
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = "video-summary.md";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }
+                        }}
                       >
                         <Download className="h-4 w-4" />
                         DOWNLOAD SUMMARY
                       </Button>
                     </div>
 
-                    <div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full flex items-center gap-2 border-green-200 text-primary-800 hover:bg-green-50 font-mono text-xs"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        SHARE RESULTS
-                      </Button>
-                    </div>
-
-                    <div className="pt-4 border-t border-green-100">
-                      <h3 className="text-sm font-medium mb-2 text-primary-800">Was this helpful?</h3>
+                    <div className="pt-4 border-t border-zinc-100">
+                      <h3 className="text-sm font-medium mb-2 text-zinc-800">
+                        Was this helpful?
+                      </h3>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex items-center gap-2 border-green-200 text-primary-800 hover:bg-green-50"
+                          className="flex items-center gap-2 border-zinc-200 text-zinc-800 hover:bg-zinc-50"
                         >
                           <ThumbsUp className="h-4 w-4" />
                           Yes
@@ -113,7 +225,7 @@ export default function ResultsPage({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex items-center gap-2 border-green-200 text-primary-800 hover:bg-green-50"
+                          className="flex items-center gap-2 border-zinc-200 text-zinc-800 hover:bg-zinc-50"
                         >
                           <ThumbsDown className="h-4 w-4" />
                           No
@@ -126,48 +238,57 @@ export default function ResultsPage({
             </div>
 
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="h-5 w-5 text-green-500" />
-                <h2 className="text-xl font-bold text-primary-800">AI-Generated Results</h2>
+              <div className="flex items-center gap-2 mb-5">
+                <div className="bg-zinc-100 rounded-full p-2">
+                  <Sparkles className="h-5 w-5 text-zinc-700" />
+                </div>
+                <h2 className="text-xl font-bold text-zinc-900 font-['Geist Mono']">
+                  VIDEO SUMMARY
+                </h2>
               </div>
 
-              <Tabs defaultValue="summary" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-green-100 p-1">
-                  <TabsTrigger
-                    value="summary"
-                    className="data-[state=active]:bg-white data-[state=active]:text-primary-800 data-[state=active]:shadow-sm text-primary-700 font-mono"
-                  >
-                    SUMMARY
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="transcript"
-                    className="data-[state=active]:bg-white data-[state=active]:text-primary-800 data-[state=active]:shadow-sm text-primary-700 font-mono"
-                  >
-                    FULL TRANSCRIPT
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="summary" className="mt-4">
-                  <Card className="p-6 border-green-100 bg-white shadow-md">
-                    <SummaryView videoUrl={videoUrl} />
-                  </Card>
-                </TabsContent>
-                <TabsContent value="transcript" className="mt-4">
-                  <Card className="p-6 border-green-100 bg-white shadow-md">
-                    <TranscriptView videoUrl={videoUrl} />
-                  </Card>
-                </TabsContent>
-              </Tabs>
+              {error ? (
+                <Card className="p-6 border-red-100 bg-white shadow-md">
+                  <div className="p-4 text-red-600 bg-red-50/50 rounded-lg">
+                    <p className="font-medium">Error</p>
+                    <p className="text-sm">{error}</p>
+                    <Button
+                      onClick={handleTryAgain}
+                      className="mt-4 bg-zinc-600 hover:bg-zinc-700 text-white"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="p-6 border-zinc-100 bg-white shadow-md">
+                  {loading ? (
+                    <div className="py-12 flex flex-col items-center justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-zinc-500 mb-4" />
+                      <p className="text-zinc-800 font-medium">
+                        Generating summary...
+                      </p>
+                      <p className="text-zinc-600 text-sm mt-2">
+                        This may take a minute or two
+                      </p>
+                    </div>
+                  ) : (
+                    <SummaryView summary={summary} isLoading={false} error="" />
+                  )}
+                </Card>
+              )}
             </div>
           </div>
-        </Suspense>
+        )}
       </main>
 
-      <footer className="border-t border-green-100 py-6 bg-gradient-to-b from-background to-green-50/30">
+      <footer className="border-t border-zinc-100 py-6 bg-gradient-to-b from-white to-zinc-50/30">
         <div className="container flex justify-center">
-          <p className="text-sm text-primary-700 font-mono">© 2024 VIDIFY. MADE WITH AI.</p>
+          <p className="text-sm text-zinc-700 font-mono">
+            © 2024 VIDIFY. MADE WITH AI.
+          </p>
         </div>
       </footer>
     </div>
-  )
+  );
 }
-

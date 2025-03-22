@@ -1,27 +1,62 @@
-export async function POST(req: Request) {
-  try {
-    const { videoUrl } = await req.json()
+import { NextResponse } from "next/server";
 
-    if (!videoUrl) {
-      return Response.json({ error: "Video URL is required" }, { status: 400 })
+const API_URL = "https://flows.eachlabs.ai/api/v1";
+
+export async function POST(request: Request) {
+  try {
+    const EACH_API_KEY = process.env.NEXT_PUBLIC_EACH_API_KEY;
+    const WORKFLOW_ID = process.env.NEXT_PUBLIC_EACH_WORKFLOW_ID;
+
+    if (!EACH_API_KEY || !WORKFLOW_ID) {
+      return NextResponse.json(
+        {
+          error: "Server configuration error - missing API key or workflow ID",
+        },
+        { status: 500 }
+      );
     }
 
-    // In a real application, you would:
-    // 1. Download the video or extract audio
-    // 2. Use a speech-to-text service to generate the transcript
-    // 3. Store the transcript in a database
+    const { videoUrl } = await request.json();
 
-    // For this demo, we'll simulate the process with a delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (!videoUrl) {
+      return NextResponse.json(
+        { error: "Video URL is required" },
+        { status: 400 }
+      );
+    }
 
-    // Mock response - in a real app, this would be the actual transcript
-    return Response.json({
+    // Trigger workflow
+    const triggerRes = await fetch(`${API_URL}/${WORKFLOW_ID}/trigger`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": EACH_API_KEY,
+      },
+      body: JSON.stringify({
+        input: {
+          youtube_url: videoUrl,
+        },
+      }),
+    });
+
+    const triggerData = await triggerRes.json();
+
+    if (!triggerRes.ok) {
+      return NextResponse.json(
+        { error: triggerData.error || "Failed to trigger workflow" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
       success: true,
-      transcript: "This is a simulated transcript for the video at " + videoUrl,
-    })
+      trigger_id: triggerData.id,
+    });
   } catch (error) {
-    console.error("Error processing transcript:", error)
-    return Response.json({ error: "Failed to process video" }, { status: 500 })
+    console.error("Error processing video:", error);
+    return NextResponse.json(
+      { error: "Failed to process video" },
+      { status: 500 }
+    );
   }
 }
-
